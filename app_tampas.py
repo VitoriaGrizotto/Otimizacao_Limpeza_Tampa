@@ -16,11 +16,11 @@ def calcular_status(proxima_data):
     hoje = datetime.today().date()
     dias = (proxima_data - hoje).days
     if dias < 0:
-        return "VENCIDO", "#d9534f"
+        return "VENCIDO", "#ed0007"
     elif dias <= 7:
-        return "PERTO DE VENCER", "#f0ad4e"
+        return "PERTO DE VENCER", "#ffcf00"
     else:
-        return "EM DIA", "#5cb85c"
+        return "EM DIA", "#00884a"
 
 
 def buscar_tampa():
@@ -61,6 +61,13 @@ def cadastrar():
     except ValueError:
         messagebox.showerror("Erro", "Data inválida! Use DD/MM/AAAA.")
         return
+    
+    with open(CSV_FILE, 'r', newline='', encoding='utf-8') as csvfile:
+        leitor = csv.DictReader(csvfile)
+        for row in leitor:
+            if row['codigo'] == codigo:
+                messagebox.showwarning("Aviso", f"Essa tampa '{codigo}' já existe. Por favor, cadastre uma tampa que ainda não foi cadastrada ou edite uma tampa existente.")
+                return
 
     with open(CSV_FILE, 'a', newline='', encoding='utf-8') as csvfile:
         escritor = csv.writer(csvfile)
@@ -160,6 +167,54 @@ def editar():
               bg="#0275d8", fg="white", font=("Segoe UI", 13, "bold"),
               relief="flat", height=2).pack(pady=15, fill="x", padx=20)
 
+
+# ----------- FUNÇÃO GERAR RELATÓRIO -----------
+def gerar_relatorio():
+    hoje = datetime.today().date()
+    proximo_mes = (hoje.month % 12) + 1
+    ano_proximo = hoje.year + 1 if hoje.month == 12 else hoje.year
+
+    tampas_proximo_mes = []
+
+    with open(CSV_FILE, newline='', encoding='utf-8') as csvfile:
+        leitor = csv.DictReader(csvfile)
+        for linha in leitor:
+            data_ultima = datetime.strptime(linha['data_ultima_limpeza'], "%Y-%m-%d").date()
+            proxima = data_ultima + timedelta(days=180)
+
+            if proxima.month == proximo_mes and proxima.year == ano_proximo:
+                tampas_proximo_mes.append({
+                    "codigo": linha["codigo"],
+                    "ultima": data_ultima.strftime("%d/%m/%Y"),
+                    "proxima": proxima.strftime("%d/%m/%Y"),
+                    "historico": linha["historico"]
+                })
+
+    # Salva relatório em TXT formatado
+    with open("relatorio_tampas_vencidas.txt", "w", encoding="utf-8") as f:
+        f.write("RELATÓRIO DE LIMPEZA DE TAMPAS\n")
+        f.write(f"Referente ao mês {proximo_mes:02d}/{ano_proximo}\n")
+        f.write("=" * 50 + "\n\n")
+
+        if tampas_proximo_mes:
+            for tampa in tampas_proximo_mes:
+                f.write(f"Tampa: {tampa['codigo']}\n")
+                f.write(f"Última Limpeza: {tampa['ultima']}\n")
+                f.write(f"Próxima Limpeza: {tampa['proxima']}\n")
+                f.write(f"Histórico: {tampa['historico']}\n")
+                f.write("-" * 50 + "\n")
+        else:
+            f.write("Não há tampas com vencimento para este período.\n")
+
+    if tampas_proximo_mes:
+        messagebox.showinfo("Relatório Gerado",
+                            f"O relatório de {proximo_mes:02d}/{ano_proximo} foi gerado em 'relatorio_tampas_vencidas.txt' com sucesso!")
+    else:
+        messagebox.showinfo("Relatório Gerado",
+                            f"Não há tampas com vencimento em {proximo_mes:02d}/{ano_proximo}.")
+
+
+
 # ---------- INTERFACE PRINCIPAL --------------
 
 root = tk.Tk()
@@ -188,19 +243,28 @@ btn_frame = tk.Frame(main_frame, bg="#f8f9fa")
 btn_frame.grid(row=1, column=0, pady=15)
 
 tk.Button(btn_frame, text="Consultar", command=buscar_tampa,
-          bg="#5cb85c", fg="white", font=("Segoe UI", 14, "bold"),
+          bg="#00884a", fg="white", font=("Segoe UI", 14, "bold"),
           relief="flat", height=2, width=20).grid(row=0, column=0, padx=15)
 
 tk.Button(btn_frame, text="Novo Cadastro", command=abrir_cadastro,
-          bg="#6c757d", fg="white", font=("Segoe UI", 14, "bold"),
+          bg="#71767c", fg="white", font=("Segoe UI", 14, "bold"),
           relief="flat", height=2, width=20).grid(row=0, column=1, padx=15)
 
 tk.Button(btn_frame, text="Editar", command=editar,
-          bg="#f0ad4e", fg="white", font=("Segoe UI", 14, "bold"),
+          bg="#eec100", fg="white", font=("Segoe UI", 14, "bold"),
           relief="flat", height=2, width=20).grid(row=0, column=2, padx=15)
+
+tk.Button(btn_frame, text="Gerar Relatório", command=gerar_relatorio,
+          bg="#f8f9fa", fg="#495057", font=("Segoe UI", 13),
+          relief="groove", height=2, width=20).grid(row=0, column=3, padx=15)
 
 resultado = tk.Label(main_frame, text="", font=("Segoe UI", 16),
                      bg="white", relief="groove", wraplength=1000, justify="left")
 resultado.grid(row=2, column=0, sticky="nsew", padx=50, pady=30)
+
+hoje = datetime.today().date()
+amanha = hoje + timedelta(days=1)
+if amanha.day == 1:  #se amanhã for dia 1, significa que hoje é o último dia do mês
+    gerar_relatorio()
 
 root.mainloop()
